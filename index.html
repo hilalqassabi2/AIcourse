@@ -260,6 +260,9 @@ input[type=date],input[type=number],select,textarea{
   width:100%;font:inherit;font-size:1rem;padding:.55rem .7rem;border:1px solid var(--stone-d);
   border-radius:3px;background:#fff;color:var(--text)}
 textarea{resize:vertical;min-height:72px;line-height:1.7}
+.warnbox{border:1px solid #B4452F;background:#FBE9E5;color:#6E2718;padding:.75rem .9rem;border-radius:3px;
+  margin-block-end:.9rem;font-size:.93rem;line-height:1.8}
+.warnbox b{display:block;margin-block-end:.3rem}
 .outbox{background:var(--ink);color:#EFE9DA;border-radius:3px;padding:1rem;white-space:pre-wrap;min-height:130px;
   font-size:.98rem;line-height:1.9}
 .outbox:empty::before{content:"املأ ما ينطبق، ويظهر التوجيه هنا جاهزاً للنسخ.";color:#7C8F85}
@@ -956,7 +959,16 @@ function drawQR(canvas,text){
 
 function gfParse(link){
   link=String(link||'').trim();
-  if(!/docs\.google\.com\/forms\//.test(link))return null;
+  /* يعيد {err:…} بسبب الرفض، أو الإعداد عند النجاح */
+  if(!link)return {err:'الحقل فارغ — الصق الرابط أولاً.'};
+  if(/forms\.gle\//i.test(link))
+    return {err:'هذا رابط المشاركة المختصر، وليس الرابط المعبّأ مسبقاً. '+
+      'ارجع إلى النموذج ← النقاط الثلاث أعلاه ← «الحصول على رابط معبأ مسبقًا».'};
+  if(!/docs\.google\.com\/forms\//i.test(link))
+    return {err:'هذا ليس رابط نموذج جوجل. الرابط المطلوب يبدأ هكذا: docs.google.com/forms/d/e/…'};
+  if(link.indexOf('entry.')<0 && /\/edit/i.test(link))
+    return {err:'هذا رابط تحرير النموذج، لا رابط الاستجابة. '+
+      'النقاط الثلاث أعلى النموذج ← «الحصول على رابط معبأ مسبقًا».'};
   var q=link.indexOf('?');
   var base=q<0?link:link.slice(0,q);
   var entries=[],seen={};
@@ -969,7 +981,9 @@ function gfParse(link){
       }
     });
   }
-  if(!entries.length)return null;
+  if(!entries.length)
+    return {err:'الرابط لا يحمل أرقام الحقول. '+
+      'في صفحة «رابط معبأ مسبقًا» أجب عن الأسئلة كلها، ثم اضغط «الحصول على الرابط» أسفل الصفحة، ثم «نسخ الرابط».'};
   return {
     action: base.replace(/\/viewform.*$/,'/formResponse'),
     viewform: base.replace(/\/formResponse.*$/,'/viewform'),
@@ -983,6 +997,8 @@ function gfPost(action,pairs){
   ifr.name=nm;ifr.style.display='none';document.body.appendChild(ifr);
   var f=document.createElement('form');
   f.action=action;f.method='POST';f.target=nm;f.style.display='none';
+  /* حقول جوجل القياسية: بعض النماذج ترفض الاستجابة بدونها */
+  pairs=pairs.concat([['fvv','1'],['pageHistory','0']]);
   pairs.forEach(function(p){
     var i=document.createElement('input');
     i.type='hidden';i.name=p[0];i.value=p[1];f.appendChild(i);
@@ -1040,6 +1056,8 @@ function setDeep(o,p,v){var a=p.split('.'),c=o;
   var l=a[a.length-1];c[/^\d+$/.test(l)?+l:l]=v;}
 function getDeep(o,p){return p.split('.').reduce(function(a,k){return a==null?a:a[/^\d+$/.test(k)?+k:k];},o);}
 function digits(s){return String(s||'').replace(/[٠-٩]/g,function(d){return '٠١٢٣٤٥٦٧٨٩'.indexOf(d);});}
+/* أرقام عربية-هندية للعرض */
+function an(n){return String(n).replace(/[0-9]/g,function(d){return '٠١٢٣٤٥٦٧٨٩'.charAt(+d);});}
 
 /* ---------- التخزين ---------- */
 var KEY='awqaf-ws';
@@ -1215,7 +1233,7 @@ function drawSend(){
   var a=answered(),tot=CFG.assess.length;
   $('#sendTitle').textContent=mode==='pre'?'إرسال التقييم القبلي':'إرسال التقييم البعدي';
   $('#meter').style.width=(a/tot*100)+'%';
-  $('#sendState').textContent='أجبت عن '+a+' من '+tot+' عبارة.';
+  $('#sendState').textContent='أجبت عن '+an(a)+' من '+an(tot)+(tot>=3&&tot<=10?' عبارات.':' عبارة.');
   var when=(ME.sent||{})[mode];
   var btns='';
   if(ready){
@@ -1223,13 +1241,19 @@ function drawSend(){
       'إرسال النتيجة إلى المدرّب</button>';
     if(when)btns+='<p>أُرسلت من قبل. الإرسال مجدداً يضيف صفاً جديداً في جدول المدرّب.</p>';
   } else {
-    btns+='<p>لم يُفعَّل الإرسال بعد. نزّل نتيجتك وسلّمها للمدرّب.</p>';
+    /* لا يظهر زرّ الإرسال قبل ربط النموذج، فيُشرح السبب وطريق إصلاحه */
+    btns+='<p><b>زر الإرسال مخفي لأن نموذج الاستجابات لم يُربط بعد.</b></p>'+
+      '<p>للمدرّب: لوحة المشرف ← تبويب «نموذج جوجل» ← الصق الرابط المعبّأ مسبقاً ← «استخرج الحقول». '+
+      'عندها يظهر الزر هنا لكل من يفتح الصفحة.</p>'+
+      '<button class="btn btn-ghost btn-sm" type="button" id="toAdm" style="margin-block-end:.5rem">افتح لوحة المشرف</button>'+
+      '<p>وإلى أن يُربط: نزّل نتيجتك وسلّمها للمدرّب.</p>';
   }
   btns+='<div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-block-start:.7rem">'+
     '<button class="btn btn-ghost btn-sm" type="button" id="dlRes">تنزيل نتيجتي</button>'+
     '<button class="btn btn-ghost btn-sm" type="button" id="cmpBtn">أظهر المقارنة</button></div>';
   $('#sendBtns').innerHTML=btns;
   if(ready)$('#sendBtn').addEventListener('click',sendAssess);
+  var ta=$('#toAdm');if(ta)ta.addEventListener('click',openAdm);
   $('#dlRes').addEventListener('click',dlRes);
   $('#cmpBtn').addEventListener('click',function(){$('#result').innerHTML=compare();});
 }
@@ -1539,6 +1563,7 @@ function toolEd(key,t,i){
       ['مدفوع','مجاني','مرجع'].map(function(p){return '<option'+(t.plan===p?' selected':'')+'>'+p+'</option>';}).join('')+
     '</select></div>'+fA('الوصف',key+'.'+i+'.note','',2)+'</div>';}
 
+var gfErr='';
 function gfBlock(){
   var F=CFG.forms.assess,min=CFG.assess.length+2,need=min+1,got=(F.entries||[]).length,ok=got>=min;
   var order=['اسم المشارك (سؤال نصي قصير)','نوع التقييم (اختيار: '+F.typeLabels.join(' / ')+')']
@@ -1547,12 +1572,14 @@ function gfBlock(){
   return '<div class="box"><p class="note" style="margin-block-start:0">أنشئ نموذجاً في جوجل بهذا الترتيب بالضبط ('+need+' سؤالاً):</p>'+
     '<ol class="note" style="padding-inline-start:1.2rem">'+order.map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ol>'+
     '<p class="note">خيارات كل عبارة ثلاثة بالنص نفسه: '+esc(CFG.scaleLabels.join(' / '))+'</p>'+
-    '<p class="note">ثم من النقاط الثلاث أعلى النموذج: «الحصول على رابط معبأ مسبقًا»، املأ أي إجابات، اضغط «الحصول على الرابط» ثم «نسخ الرابط»، والصقه هنا:</p>'+
+    '<p class="note">ثم من النقاط الثلاث أعلى النموذج: «الحصول على رابط معبأ مسبقًا»، أجب عن الأسئلة كلها بلا استثناء، اضغط «الحصول على الرابط» ثم «نسخ الرابط»، والصقه هنا:</p>'+
+    (gfErr?'<div class="warnbox"><b>لم يُقبل الرابط</b>'+esc(gfErr)+'</div>':'')+
     '<div class="field"><label>الرابط المعبّأ مسبقاً</label>'+
     '<textarea rows="3" id="gfLink" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.123=...">'+esc(F.prefill||'')+'</textarea></div>'+
     '<div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'+
       '<button class="btn btn-frond btn-sm" type="button" id="gfGo">استخرج الحقول</button>'+
-      (ok?'<button class="btn btn-line btn-sm" type="button" id="gfTest">إرسال صف اختباري</button>':'')+
+      (ok?'<button class="btn btn-line btn-sm" type="button" id="gfTest">إرسال صف اختباري</button>'+
+          '<button class="btn btn-line btn-sm" type="button" id="gfPeek">افحص الحقول</button>':'')+
       '<span class="note">'+(got>=need?'✔ استُخرج '+got+' حقلاً — جاهز، وفيه السؤال المفتوح':
         (ok?'✔ استُخرج '+got+' حقلاً — جاهز، لكن بلا السؤال المفتوح. أضفه آخرَ النموذج ثم أعد الاستخراج.':
         (got?'⚠ استُخرج '+got+' والمطلوب '+need:'لم يُضبط بعد')))+'</span>'+
@@ -1585,7 +1612,9 @@ function admWire(){
   var g=$('#gfGo');
   if(g)g.addEventListener('click',function(){
     var p=gfParse($('#gfLink').value);collect();
-    if(!p){CFG.forms.assess.entries=[];admDraw();return toast('الرابط غير صالح. تأكد أنه رابط «معبّأ مسبقاً».');}
+    if(!p||p.err){gfErr=(p&&p.err)||'الرابط غير صالح.';CFG.forms.assess.entries=[];
+      admDraw();return toast('الرابط غير صالح — اقرأ السبب أعلى الحقل.');}
+    gfErr='';
     CFG.forms.assess.prefill=$('#gfLink').value.trim();
     CFG.forms.assess.action=p.action;CFG.forms.assess.viewform=p.viewform;CFG.forms.assess.entries=p.entries;
     saveCfg();admDraw();drawSend();toast('استُخرج '+p.entries.length+' حقلاً.');});
@@ -1597,6 +1626,14 @@ function admWire(){
       return [e,i===0?'صف اختباري من لوحة المشرف':(i===1?F.typeLabels[0]:
         ((hasOpen&&i===last)?'نص اختباري للسؤال المفتوح':CFG.scaleLabels[0]))];}));
     toast('أُرسل صف اختباري. افتح جدول الردود للتأكد.');});
+  /* يفتح النموذج معبّأً بقيم مميّزة: إن ظهرت داخله فأرقام الحقول صحيحة */
+  var gp=$('#gfPeek');
+  if(gp)gp.addEventListener('click',function(){
+    var F=CFG.forms.assess;
+    window.open(gfUrl(F.viewform,F.entries.map(function(e,i){
+      return [e,i===1?F.typeLabels[0]:(i>=2&&i<=CFG.assess.length+1?CFG.scaleLabels[0]:'فحص '+(i+1))];
+    })),'_blank','noopener');
+    toast('فُتح النموذج معبّأً. إن ظهرت الإجابات داخله فالحقول صحيحة.');});
   var ps=$('#pfS');
   if(ps)ps.addEventListener('click',function(){
     var n=($('#pfN').value||'').trim();if(!n)return toast('اكتب اسماً للملف.');

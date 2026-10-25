@@ -593,7 +593,8 @@ footer b{color:#EFE9DA}
    كل المحتوى في DATA أدناه، ويُعدَّل من لوحة المشرف دون لمس الكود.
    ===================================================================== */
 var DATA = {
-  meta: { savedAt: 0 },
+  /* savedAt أحدث من أي إعداد محفوظ على الأجهزة، فيعلو الملفُ عليها */
+  meta: { savedAt: 1792945800000 },
 
   org: {
     name: "مكتب الأوقاف والشؤون الدينية بولاية بهلا",
@@ -833,8 +834,31 @@ var DATA = {
   ],
 
   forms: {
-    assess: { prefill:"", action:"", viewform:"", entries:[], send:"prefill",
-              typeLabels:["قبلي","بعدي"] }
+    assess: {
+      /* النموذج المنشور لمكتب الأوقاف ببهلا — مربوط مسبقاً */
+      pub:"https://docs.google.com/forms/d/e/1FAIpQLSfKxf6h1-lcyTrnvbH96oWTq9g5feNrq6rJ4ZzUTxaXBzH2dg/viewform",
+      viewform:"https://docs.google.com/forms/d/e/1FAIpQLSfKxf6h1-lcyTrnvbH96oWTq9g5feNrq6rJ4ZzUTxaXBzH2dg/viewform",
+      action:"https://docs.google.com/forms/d/e/1FAIpQLSfKxf6h1-lcyTrnvbH96oWTq9g5feNrq6rJ4ZzUTxaXBzH2dg/formResponse",
+      prefill:"https://docs.google.com/forms/d/1KO6gSA8sj6J1egit73Hr9P0FFiUfXj-NWdZrVAJwzFI/prefill?usp=pp_url"+
+        "&entry.1907625475=x&entry.1290441006=x&entry.265928821=x&entry.1917156782=x&entry.1114733677=x"+
+        "&entry.629689771=x&entry.654188074=x&entry.1268746977=x&entry.1379343338=x&entry.491153271=x"+
+        "&entry.1228484056=x&entry.1955758080=x",
+      entries:[
+        "entry.1907625475",  /* اسم المشارك */
+        "entry.1290441006",  /* نوع التقييم */
+        "entry.265928821",   /* العبارة ١ */
+        "entry.1917156782",  /* ٢ */
+        "entry.1114733677",  /* ٣ */
+        "entry.629689771",   /* ٤ */
+        "entry.654188074",   /* ٥ */
+        "entry.1268746977",  /* ٦ */
+        "entry.1379343338",  /* ٧ */
+        "entry.491153271",   /* ٨ */
+        "entry.1228484056",  /* ٩ */
+        "entry.1955758080"   /* السؤال المفتوح */
+      ],
+      send:"prefill",
+      typeLabels:["قبلي","بعدي"] }
   },
 
   admin: { hash: 1957018691 }   /* الافتراضية: hilal2026 */
@@ -1604,8 +1628,11 @@ function gfBlock(){
     '<p class="note">خيارات كل عبارة ثلاثة بالنص نفسه: '+esc(CFG.scaleLabels.join(' / '))+'</p>'+
     '<p class="note">ثم من النقاط الثلاث أعلى النموذج: «الحصول على رابط معبأ مسبقًا»، أجب عن الأسئلة كلها بلا استثناء، اضغط «الحصول على الرابط» ثم «نسخ الرابط»، والصقه هنا:</p>'+
     (gfErr?'<div class="warnbox"><b>لم يُقبل الرابط</b>'+esc(gfErr)+'</div>':'')+
-    '<div class="field"><label>الرابط المعبّأ مسبقاً</label>'+
-    '<textarea rows="3" id="gfLink" placeholder="https://docs.google.com/forms/d/e/.../viewform?usp=pp_url&entry.123=...">'+esc(F.prefill||'')+'</textarea></div>'+
+    '<div class="field"><label>الرابط المعبّأ مسبقاً<span class="hint">منه تُؤخذ أرقام الحقول وترتيبها</span></label>'+
+    '<textarea rows="3" id="gfLink" placeholder="...?usp=pp_url&entry.123=...">'+esc(F.prefill||'')+'</textarea></div>'+
+    '<div class="field"><label>رابط النموذج المنشور'+
+    '<span class="hint">عنوان النموذج كما يفتحه المتدرّب، وفيه ‎/d/e/‎ لا ‎/d/‎ وحدها. منه يُبنى عنوان الإرسال.</span></label>'+
+    '<textarea rows="2" id="gfPub" placeholder="https://docs.google.com/forms/d/e/1FAIpQL.../viewform">'+esc(F.pub||'')+'</textarea></div>'+
     '<div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'+
       '<button class="btn btn-frond btn-sm" type="button" id="gfGo">استخرج الحقول</button>'+
       (ok?'<button class="btn btn-line btn-sm" type="button" id="gfTest">إرسال صف اختباري</button>'+
@@ -1647,6 +1674,18 @@ function admWire(){
     gfErr='';
     CFG.forms.assess.prefill=$('#gfLink').value.trim();
     CFG.forms.assess.action=p.action;CFG.forms.assess.viewform=p.viewform;CFG.forms.assess.entries=p.entries;
+    /* عنوان النموذج المنشور يعلو على ما يُشتقّ من رابط التحرير */
+    var pub=(($('#gfPub')||{}).value||'').trim();
+    CFG.forms.assess.pub=pub;
+    var base=pub.split('?')[0].replace(/\/(viewform|formResponse|prefill|edit).*$/,'');
+    if(/\/forms\/d\/e\/[^\/]+$/.test(base)){
+      CFG.forms.assess.viewform=base+'/viewform';
+      CFG.forms.assess.action=base+'/formResponse';
+    } else if(!/\/forms\/d\/e\//.test(CFG.forms.assess.action)){
+      gfErr='استُخرجت أرقام الحقول، لكن عنوان الإرسال غير صالح: '+
+        'رابطك المعبّأ مأخوذ من صفحة التحرير. '+
+        'الصق في الحقل الثاني عنوان النموذج المنشور (الذي فيه ‎/d/e/‎) حتى يُبنى عنوان الإرسال صحيحاً.';
+    }
     saveCfg();admDraw();drawSend();toast('استُخرج '+p.entries.length+' حقلاً.');});
   var gt=$('#gfTest');
   if(gt)gt.addEventListener('click',function(){

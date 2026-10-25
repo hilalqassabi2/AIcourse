@@ -833,7 +833,7 @@ var DATA = {
   ],
 
   forms: {
-    assess: { prefill:"", action:"", viewform:"", entries:[], send:"direct",
+    assess: { prefill:"", action:"", viewform:"", entries:[], send:"prefill",
               typeLabels:["قبلي","بعدي"] }
   },
 
@@ -990,8 +990,22 @@ function gfParse(link){
     entries: entries
   };
 }
-/* إرسال صامت عبر إطار مخفي — يتجاوز قيود CORS، ولا يعيد تأكيداً من جوجل. */
+/* إرسال صامت. يُجرَّب fetch أولاً لأنه يحمل ترويسة المصدر التي يطلبها جوجل،
+   ثم الإطار المخفي إن لم يتوفّر. وكلاهما لا يعيد تأكيداً. */
 function gfPost(action,pairs){
+  var body=pairs.concat([['fvv','1'],['pageHistory','0']])
+    .map(function(p){return encodeURIComponent(p[0])+'='+encodeURIComponent(p[1]);}).join('&');
+  if(window.fetch&&window.URLSearchParams){
+    try{
+      fetch(action,{method:'POST',mode:'no-cors',credentials:'omit',
+        headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+        body:body}).catch(function(){gfPostFrame(action,pairs);});
+      return;
+    }catch(e){}
+  }
+  gfPostFrame(action,pairs);
+}
+function gfPostFrame(action,pairs){
   var nm='gf'+Date.now();
   var ifr=document.createElement('iframe');
   ifr.name=nm;ifr.style.display='none';document.body.appendChild(ifr);
@@ -1237,8 +1251,11 @@ function drawSend(){
   var when=(ME.sent||{})[mode];
   var btns='';
   if(ready){
+    var pre=F.send==='prefill';
     btns+='<button class="btn btn-brass" type="button" id="sendBtn" style="width:100%;justify-content:center">'+
-      'إرسال النتيجة إلى المدرّب</button>';
+      (pre?'افتح النموذج بإجاباتي':'إرسال النتيجة إلى المدرّب')+'</button>';
+    if(pre)btns+='<p><b>خطوتان:</b> يفتح النموذج وإجاباتك مكتوبة فيه، '+
+      'فراجعها واضغط «إرسال» داخل جوجل. بلا هذه الضغطة لا تصل النتيجة.</p>';
     if(when)btns+='<p>أُرسلت من قبل. الإرسال مجدداً يضيف صفاً جديداً في جدول المدرّب.</p>';
   } else {
     /* لا يظهر زرّ الإرسال قبل ربط النموذج، فيُشرح السبب وطريق إصلاحه */
@@ -1270,8 +1287,14 @@ function sendAssess(){
   if(e.length>CFG.assess.length+2)
     pairs.push([e[CFG.assess.length+2],mode==='pre'?(ME.wish||''):'']);
   if(F.send==='prefill'){
-    window.open(gfUrl(F.viewform,pairs),'_blank','noopener');
-    toast('فُتح النموذج معبّأً — اضغط «إرسال» فيه.');
+    var url=gfUrl(F.viewform,pairs);
+    var w=null;try{w=window.open(url,'_blank','noopener');}catch(e){}
+    if(!w){ /* حاجب النوافذ المنبثقة: اعرض الرابط ليفتحه بنفسه */
+      $('#result').innerHTML='<div class="result"><p>منع المتصفح فتح النافذة. '+
+        'اضغط هذا الرابط لتفتح النموذج بإجاباتك:</p>'+
+        '<p><a class="btn btn-brass" href="'+esc(url)+'" target="_blank" rel="noopener">افتح النموذج بإجاباتي</a></p></div>';
+      toast('منع المتصفح النافذة — استخدم الرابط الظاهر أسفل الصفحة.');
+    } else toast('فُتح النموذج بإجاباتك — اضغط «إرسال» فيه.');
   } else {gfPost(F.action,pairs);toast('أُرسلت نتيجتك.');}
   ME.sent=ME.sent||{};ME.sent[mode]=Date.now();saveMe();drawSend();
 }
@@ -1631,7 +1654,10 @@ function admWire(){
   if(gp)gp.addEventListener('click',function(){
     var F=CFG.forms.assess;
     window.open(gfUrl(F.viewform,F.entries.map(function(e,i){
-      return [e,i===1?F.typeLabels[0]:(i>=2&&i<=CFG.assess.length+1?CFG.scaleLabels[0]:'فحص '+(i+1))];
+      if(i===0)return [e,'فحص الاسم'];
+      if(i===1)return [e,F.typeLabels[0]];
+      if(i<=CFG.assess.length+1)return [e,CFG.scaleLabels[(i-2)%3]];
+      return [e,'فحص السؤال المفتوح'];
     })),'_blank','noopener');
     toast('فُتح النموذج معبّأً. إن ظهرت الإجابات داخله فالحقول صحيحة.');});
   var ps=$('#pfS');

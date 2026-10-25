@@ -1261,7 +1261,8 @@ function drawSend(){
     /* لا يظهر زرّ الإرسال قبل ربط النموذج، فيُشرح السبب وطريق إصلاحه */
     btns+='<p><b>زر الإرسال مخفي لأن نموذج الاستجابات لم يُربط بعد.</b></p>'+
       '<p>للمدرّب: لوحة المشرف ← تبويب «نموذج جوجل» ← الصق الرابط المعبّأ مسبقاً ← «استخرج الحقول». '+
-      'عندها يظهر الزر هنا لكل من يفتح الصفحة.</p>'+
+      'وإن كنت قد ربطته على حاسوبك ولا ترى الزر هنا، فالنسخة المحدّثة لم تُرفع بعد: '+
+      '«تنزيل نسخة محدّثة» ثم ارفعها باسم index.html.</p>'+
       '<button class="btn btn-ghost btn-sm" type="button" id="toAdm" style="margin-block-end:.5rem">افتح لوحة المشرف</button>'+
       '<p>وإلى أن يُربط: نزّل نتيجتك وسلّمها للمدرّب.</p>';
   }
@@ -1513,6 +1514,12 @@ function admDraw(){
   $('#atabs').innerHTML=ATABS.map(function(a){
     return '<button type="button" role="tab" data-t="'+a[0]+'" aria-selected="'+(a[0]===atab)+'">'+a[1]+'</button>';}).join('');
   $$('#atabs button').forEach(function(b){b.addEventListener('click',function(){atab=b.dataset.t;admDraw();});});
+  /* تنبيه دائم: ما يُحفظ هنا لا يراه أحد قبل رفع نسخة محدّثة */
+  var hasLocal=false;try{hasLocal=!!get(KEY+':cfg');}catch(e){}
+  var banner=hasLocal?'<div class="warnbox" style="border-color:#A8761F;background:#FBF3E2;color:#5C4208">'+
+    '<b>تعديلاتك محفوظة على هذا الجهاز فقط</b>'+
+    'المتدربون — ومنهم أنت من هاتفك — يرون ما في الملف المنشور لا ما في جهازك. '+
+    'لكي تصلهم: اضغط «تنزيل نسخة محدّثة» أعلى اللوحة، غيّر اسم الملف النازل إلى index.html، وارفعه على جت هب مكان القديم.</div>':'';
   var h='';
   if(atab==='org'){
     h='<div class="grid2">'+fT('اسم الجهة','org.name')+fT('الجهة الأعلى','org.parent')+'</div>'+
@@ -1575,7 +1582,7 @@ function admDraw(){
       '<div class="field"><label>التأكيد</label><input type="password" id="pw2"></div></div>'+
       '<button class="btn btn-frond" type="button" id="pwS">تغيير كلمة المرور</button>';
   }
-  $('#abody').innerHTML=h;admWire();}
+  $('#abody').innerHTML=banner+h;admWire();}
 
 function toolEd(key,t,i){
   return '<div class="box"><div class="box__h"><b>'+esc(t.name||'(بلا اسم)')+'</b>'+
